@@ -1,4 +1,6 @@
 from numpy import random
+from matplotlib import pyplot as plt
+
 
 def totalLoans(loansAndRates):
     return round(sum([x for x, _, _ in loansAndRates]), 2)
@@ -14,47 +16,9 @@ def calculatePayment(x1, y1, x2, y2):
     return round(x1 - (x2*y2)/(y1), 2)
 
 
-# Loans are payed by how much interest they are accruing
-def interestOwed(loansAndRates, periodicalPayment):
-    lri = sorted([[l*r, l, r, id] for l, r, id in loansAndRates], reverse=True)
-    lri.append([0, 0, 1, -1])
-    totalPayments = {}
-    for i in range(len(lri) - 1):
-        for j in range(i+1, 0, -1):
-            _, x1, y1, id1 = lri[j-1]
-            _, x2, y2, _ = lri[j]
-            partialPayment = calculatePayment(x1, y1, x2, y2)
-            lri[j-1][1] -= min(partialPayment, periodicalPayment)
-            if id1 not in totalPayments:
-                totalPayments[id1] = 0
-            totalPayments[id1] += min(partialPayment, periodicalPayment)
-            periodicalPayment -= min(partialPayment, periodicalPayment)
-
-    sortedKeys = sorted(list(totalPayments.keys()))
-    print("Payments on loans:")
-    print([[x, totalPayments[x]] for x in sortedKeys])
-    print("total:", round(sum(list(totalPayments.values())), 2))
-    return [[round(l, 2), r, id] for _, l, r, id in lri[:-1]]
-
-
 def assignIdentifiers(loansAndRates):
     p = 10**-2
     return [[s[0], s[1] * p, i] for i, s in enumerate(loansAndRates)]
-
-
-# def bestWayToPayDownLoans(loansAndRates,paymentPerMonth):
-#     loansAndRates= assignIdentifiers(loansAndRates)
-#     months = 0
-#     total = totalLoans(loansAndRates)
-#     while (total > 0):
-#         print(f"Month {months}:")
-#         print(f"current total: {total}")
-#         print(loansAndRates)
-#         loansAndRates = bestWayToPay(loansAndRates, paymentPerMonth)
-#         loansAndRates = monthlyLoanGrowth(loansAndRates)
-#         months += 1
-#         total = totalLoans(loansAndRates)
-#         print()
 
 
 def randomLoansAndRates(n=5):
@@ -82,51 +46,128 @@ def monthlySimulator(loansAndRates, paymentPerMonth, method):
     loansAndRates= assignIdentifiers(loansAndRates)
     months = [0]
     totals = [totalLoans(loansAndRates)]
-    
-    while (totals[-1] > 0):
-        print(f"Month {months[-1]}:")
-        print(f"current total: {totals[-1]}")
+    count = 500
+    totalPayed = 0
+    while (totals[-1] > 0 and count > 0):
+        print(f"{method.__name__} Month {months[-1]}: current total: {totals[-1]}")
         loansAndRates = method(loansAndRates, paymentPerMonth)
         loansAndRates = monthlyLoanGrowth(loansAndRates)
+        totalPayed += min(paymentPerMonth, totals[-1])
         months.append(months[-1] + 1)
         totals.append(totalLoans(loansAndRates))
-        print()
-    
-    return months, totals
+        count -= 1
+    return months, totals, method.__name__, round(totalPayed, 2)
 
 
 # Random Loan Each Month
 def randomMonthlyLoan(loansAndRates, periodicalPayment):
-    return []
+    n = len(loansAndRates)
+    x = [i for i in range(n) if loansAndRates[i][0] > 0]
+    c = random.choice(x)
+    while loansAndRates[c][0] == 0 or periodicalPayment > 0:
+        if periodicalPayment == 0:
+            break
+        if loansAndRates[c][0] > 0:
+            amt = float(loansAndRates[c][0])
+            loansAndRates[c][0] -= min(amt, periodicalPayment)
+            periodicalPayment -= min(amt, periodicalPayment)
+            x.remove(c)
+        if not x:
+            break
+        c = random.choice(x)
+    return [[round(l, 2), r, id] for l, r, id in loansAndRates]
 
 
 # Random amounts to each random loan each month
 def randomAmountRandomLoan(loansAndRates, periodicalPayment):
-    return []
+    n = len(loansAndRates)
+    x = [i for i in range(n) if loansAndRates[i][0] > 0]
+    c = random.choice(x)
+    xLen = len(x)
+    while periodicalPayment > 0:
+        if loansAndRates[c][0] > 0:
+            loansAndRates[c][0] -= 0.01
+            periodicalPayment -= 0.01
+        else:
+            x.remove(c)
+        if len(x) == 0:
+            break
+        if xLen != len(x):
+            print(xLen)
+            xLen = len(x)
+        c = random.choice(x)
+    return loansAndRates
 
 
-# Pay off loans by highest interests first
+# Pay off loans by highest interests first (Snowball Method)
 def highestInterest(loansAndRates, periodicalPayment):
-    return []
+    lri = sorted([[r, l, id] for l, r, id in loansAndRates], reverse=True)
+    ind = 0
+    while periodicalPayment > 0 and ind < len(lri):
+        amt = float(lri[ind][1])
+        lri[ind][1] -= min(amt, periodicalPayment)
+        periodicalPayment -= min(amt, periodicalPayment)
+        ind += 1
+    return [[round(l, 2), r, id] for r, l, id in lri]
 
 
-# Pay off loans by lowest interests first
+# Pay off smalledt loans by lowest interests first
 def lowestInterest(loansAndRates, periodicalPayment):
-    return []
+    lri = sorted([[r, l, id] for l, r, id in loansAndRates])
+    ind = 0
+    while periodicalPayment > 0 and ind < len(lri):
+        amt = float(lri[ind][1])
+        lri[ind][1] -= min(amt, periodicalPayment)
+        periodicalPayment -= min(amt, periodicalPayment)
+        ind += 1
+    return [[round(l, 2), r, id] for r, l, id in lri]
 
+# Loans are payed by how much interest they are accruing
+def interestOwed(loansAndRates, periodicalPayment):
+    lri = sorted([[l*r, l, r, id] for l, r, id in loansAndRates], reverse=True)
+    lri.append([0, 0, 1, -1])
+    for i in range(len(lri) - 1):
+        for j in range(i+1, 0, -1):
+            _, x1, y1, id1 = lri[j-1]
+            _, x2, y2, _ = lri[j]
+            partialPayment = calculatePayment(x1, y1, x2, y2)
+            lri[j-1][1] -= min(partialPayment, periodicalPayment)
+            periodicalPayment -= min(partialPayment, periodicalPayment)
+
+    # sortedKeys = sorted(list(totalPayments.keys()))
+    # print("Payments on loans:")
+    # print([[x, totalPayments[x]] for x in sortedKeys])
+    # print("total:", round(sum(list(totalPayments.values())), 2))
+    return [[round(l, 2), r, id] for _, l, r, id in lri[:-1]]
+
+
+def graphResults(data):
+    fig = plt.figure()
+    legend = []
+    for d in data:
+        (x, y, name, total) = d
+        plt.plot(x, y)
+        legend.append(f"{name} @ ${total}")
+    plt.xlabel("Months")
+    plt.ylabel("Amount ($)")
+    plt.legend(legend)
+    plt.show()
 
 def main():
-    loansAndRates = [
-        (6847.31, 3.86), 
-        (7740.88, 4.66), 
-        (1300.00, 4.66), 
-        (4508.00, 4.29), 
-        (3549.87, 4.29), 
-        (8444.24, 3.76)
+    loansAndRates = randomLoansAndRates(10)
+    methods = [
+        randomMonthlyLoan,
+        randomAmountRandomLoan,
+        highestInterest,
+        lowestInterest,
+        interestOwed
     ]
-    
-    # monthlySimulator(loansAndRates, 1500, interestOwed)
-    monthlySimulator(loansAndRates, 1500, )
+    results = []
+    for m in methods:
+        results.append(monthlySimulator(loansAndRates, 1500, m))
+
+    graphResults(results)
+
 
 if __name__ == "__main__":
     main()
