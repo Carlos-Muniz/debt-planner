@@ -1,2 +1,2 @@
 # debt-planner
-Pay the least amount of interest possible with an optimized debt playing plan. 
+Graphical proof showing the most efficient way to pay off debt is the snowball method.
